@@ -120,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
         scrollToBottom();
     }
 
-
     function formatMessage(content) {
         // Convert plain text to formatted HTML
         return content
@@ -207,3 +206,126 @@ document.addEventListener('DOMContentLoaded', function() {
             showNotification('Voice recognition is not supported in your browser.', 'error');
             return;
         }
+
+        if (voiceBtn.classList.contains('recording')) {
+            recognition.stop();
+        } else {
+            recognition.start();
+            voiceBtn.classList.add('recording');
+            voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        }
+    }
+
+    function clearChat() {
+        if (confirm('Are you sure you want to clear the chat history?')) {
+            chatMessages.innerHTML = `
+                <div class="message bot-message">
+                    <div class="message-content">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="message-text">
+                            <h3>Chat cleared! 🧹</h3>
+                            <p>Ready for new questions. Upload documents or ask me anything!</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            showNotification('Chat cleared', 'success');
+        }
+    }
+
+    function showLoading(show) {
+        if (show) {
+            loadingOverlay.classList.remove('hidden');
+        } else {
+            loadingOverlay.classList.add('hidden');
+        }
+    }
+
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+            <span>${message}</span>
+        `;
+
+        // Add to page
+        document.body.appendChild(notification);
+
+        // Show notification
+        setTimeout(() => notification.classList.add('show'), 100);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+
+    // Check initial document status
+    fetch('/status')
+        .then(response => response.json())
+        .then(data => {
+            updateDocumentStatus(data.document_count);
+        })
+        .catch(error => {
+            console.error('Status check error:', error);
+        });
+
+    // Add notification styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1001;
+            max-width: 300px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .notification.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .notification.info {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .error-message {
+            background: #fff5f5 !important;
+            border: 1px solid #fed7d7;
+            color: #c53030 !important;
+        }
+
+        .source-header {
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #667eea;
+        }
+    `;
+    document.head.appendChild(style);
+}); 
