@@ -119,3 +119,91 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.appendChild(messageDiv);
         scrollToBottom();
     }
+
+
+    function formatMessage(content) {
+        // Convert plain text to formatted HTML
+        return content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>')
+            .replace(/📄 \*\*From: (.*?)\*\*/g, '<div class="source-header">📄 <strong>From: $1</strong></div>')
+            .replace(/---/g, '<hr>');
+    }
+
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Show loading
+        showLoading(true);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            if (data.success) {
+                addMessage('bot', `✅ ${data.message}`);
+                updateDocumentStatus(data.document_count);
+                showNotification('Document uploaded successfully!', 'success');
+            } else {
+                addMessage('bot', `❌ Error uploading document: ${data.error}`, 'error');
+                showNotification('Error uploading document', 'error');
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            console.error('Upload error:', error);
+            addMessage('bot', '❌ Error uploading document. Please try again.', 'error');
+            showNotification('Upload failed', 'error');
+        });
+
+        // Clear file input
+        event.target.value = '';
+    }
+
+    function updateDocumentStatus(count) {
+        if (count > 0) {
+            statusText.textContent = 'Documents loaded';
+            documentCount.textContent = count;
+            clearDocsBtn.style.display = 'flex';
+        } else {
+            statusText.textContent = 'No documents loaded';
+            documentCount.textContent = '0';
+            clearDocsBtn.style.display = 'none';
+        }
+    }
+
+    function clearDocuments() {
+        if (confirm('Are you sure you want to clear all documents? This will remove all uploaded documents from the collection.')) {
+            fetch('/clear-documents', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addMessage('bot', `🧹 ${data.message}`);
+                    updateDocumentStatus(0);
+                    showNotification('All documents cleared', 'success');
+                } else {
+                    showNotification('Error clearing documents', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Clear documents error:', error);
+                showNotification('Error clearing documents', 'error');
+            });
+        }
+    }
+
+    function toggleVoiceInput() {
+        if (!recognition) {
+            showNotification('Voice recognition is not supported in your browser.', 'error');
+            return;
+        }
