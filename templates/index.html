@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
-
 <body>
     <div class="container">
         <!-- Header -->
@@ -23,3 +22,80 @@
                         <span class="status-text">No documents loaded</span>
                         <span class="document-count" id="document-count">0</span>
                     </div>
+                    <button id="upload-btn" class="btn btn-secondary">
+                        <i class="fas fa-upload"></i>
+                        Upload Document
+                    </button>
+                    <button id="clear-docs-btn" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-trash"></i>
+                        Clear All
+                    </button>
+                    <input type="file" id="file-input" accept=".txt,.pdf,.doc,.docx" style="display: none;">
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <!-- Welcome message -->
+                <div class="message bot-message">
+                    <div class="message-content">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="message-text">
+                            <h3>Welcome to RAG Chat Assistant! 🤖</h3>
+                            <p>I can help you find information from your document collection. Upload multiple documents and ask me anything!</p>
+                            <div class="features">
+                                <div class="feature">
+                                    <i class="fas fa-search"></i>
+                                    <span>Multi-Document Search</span>
+                                </div>
+                                <div class="feature">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span>Document Collection</span>
+                                </div>
+                                <div class="feature">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>Intelligent Answers</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <div class="input-field">
+                        <input type="text" id="question-input" placeholder="Ask me anything about your documents..." autocomplete="off">
+                        <button id="send-btn" class="send-btn">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="input-actions">
+                        <button id="voice-btn" class="action-btn" title="Voice Input">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="clear-btn" class="action-btn" title="Clear Chat">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Processing your question...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 
