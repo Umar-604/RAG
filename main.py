@@ -1,114 +1,321 @@
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
+import re
 
-# Load and split the document
-script_dir = os.path.dirname(os.path.abspath(__file__))
-document_path = os.path.join(script_dir, "document", "sample.txt")
-loader = TextLoader(document_path)
-documents = loader.load()
+def preprocess_text(text):
+    """Clean and preprocess text for better chunking"""
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text)
+    # Remove special characters but keep important punctuation
+    text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)]', '', text)
+    return text.strip()
 
-print(f"Original document length: {len(documents[0].page_content)} characters")
+def create_new_vectordb(filepath, filename):
+    """Create a new vector database from a document"""
+    print(f"Creating new vector database with document: {filename}")
+    
+    # Load the document
+    loader = TextLoader(filepath)
+    documents = loader.load()
+    
+    # Validate that we have content
+    if not documents or not documents[0].page_content.strip():
+        raise ValueError(f"Document '{filename}' is empty or contains no readable text")
+    
+    # Preprocess the text
+    documents[0].page_content = preprocess_text(documents[0].page_content)
+    
+    # Add metadata to identify the source document
+    for doc in documents:
+        doc.metadata['source'] = filename
+        doc.metadata['filepath'] = filepath
+        doc.metadata['document_type'] = 'text'
+    
+    # Better text splitting with RecursiveCharacterTextSplitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,  # Larger chunks for better context
+        chunk_overlap=100,  # More overlap to maintain context
+        separators=["\n\n", "\n", ". ", "! ", "? ", "; ", ": ", ", ", " ", ""],
+        length_function=len
+    )
+    texts = text_splitter.split_documents(documents)
+    
+    # Validate that we have chunks
+    if not texts:
+        raise ValueError(f"Document '{filename}' could not be split into meaningful chunks")
+    
+    print(f"Split into {len(texts)} text chunks")
+    
+    # Load embeddings
+    print("Loading embeddings model...")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'}
+    )
+    
+    # Create vector DB
+    print("Creating vector database...")
+    vectordb = Chroma.from_documents(texts, embeddings, persist_directory="./vectordb")
+    
+    print("✅ New vector database created successfully!")
+    return vectordb
 
-# Better text splitting
-text_splitter = CharacterTextSplitter(
-    chunk_size=200,  # Smaller chunks for better precision
-    chunk_overlap=20,  # Less overlap to avoid duplicates
-    separator="\n"  # Split on paragraphs
-)
-texts = text_splitter.split_documents(documents)
+def add_document_to_vectordb(vectordb, filepath, filename):
+    """Add a document to an existing vector database"""
+    print(f"Adding document to existing vector database: {filename}")
+    
+    # Load the document
+    loader = TextLoader(filepath)
+    documents = loader.load()
+    
+    # Validate that we have content
+    if not documents or not documents[0].page_content.strip():
+        raise ValueError(f"Document '{filename}' is empty or contains no readable text")
+    
+    # Preprocess the text
+    documents[0].page_content = preprocess_text(documents[0].page_content)
+    
+    # Add metadata to identify the source document
+    for doc in documents:
+        doc.metadata['source'] = filename
+        doc.metadata['filepath'] = filepath
+        doc.metadata['document_type'] = 'text'
+    
+    # Better text splitting with RecursiveCharacterTextSplitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,  # Larger chunks for better context
+        chunk_overlap=100,  # More overlap to maintain context
+        separators=["\n\n", "\n", ". ", "! ", "? ", "; ", ": ", ", ", " ", ""],
+        length_function=len
+    )
+    texts = text_splitter.split_documents(documents)
+    
+    # Validate that we have chunks
+    if not texts:
+        raise ValueError(f"Document '{filename}' could not be split into meaningful chunks")
+    
+    print(f"Split into {len(texts)} text chunks")
+    
+    # Add to existing vector database
+    vectordb.add_documents(texts)
+    
+    print("✅ Document added to vector database successfully!")
 
-print(f"Split into {len(texts)} text chunks")
-for i, text in enumerate(texts):
-    print(f"Chunk {i+1}: {text.page_content[:100]}...")
+def load_and_process_document(filepath):
+    """Load and process a document, returning the vector database"""
+    print(f"Loading document: {filepath}")
+    
+    # Load the document
+    loader = TextLoader(filepath)
+    documents = loader.load()
+    
+    # Validate that we have content
+    if not documents or not documents[0].page_content.strip():
+        raise ValueError(f"Document is empty or contains no readable text")
+    
+    # Preprocess the text
+    documents[0].page_content = preprocess_text(documents[0].page_content)
+    
+    print(f"Original document length: {len(documents[0].page_content)} characters")
+    
+    # Better text splitting
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,  # Larger chunks for better context
+        chunk_overlap=100,  # More overlap to maintain context
+        separators=["\n\n", "\n", ". ", "! ", "? ", "; ", ": ", ", ", " ", ""],
+        length_function=len
+    )
+    texts = text_splitter.split_documents(documents)
+    
+    # Validate that we have chunks
+    if not texts:
+        raise ValueError("Document could not be split into meaningful chunks")
+    
+    print(f"Split into {len(texts)} text chunks")
+    
+    # Load embeddings
+    print("Loading embeddings model...")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'}
+    )
+    
+    # Create vector DB
+    print("Creating vector database...")
+    vectordb = Chroma.from_documents(texts, embeddings, persist_directory="./vectordb")
+    
+    print("✅ Document processed successfully!")
+    return vectordb
 
-# Load embeddings
-print("\nLoading embeddings model...")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-# Create vector DB
-print("Creating vector database...")
-vectordb = Chroma.from_documents(texts, embeddings, persist_directory="./vectordb")
-
-# Load LLM for response refinement
-print("Loading system...")
-llm_available = False  # We'll use template-based responses instead
-
-def refine_response(query, relevant_docs):
-    """Create a professional response using template-based formatting"""
+def ask_question(question, vectordb, documents=None):
+    """Ask a question and get a response from the RAG system"""
+    if not vectordb:
+        return "No documents loaded. Please upload at least one document first."
+    
+    print(f"Processing question: {question}")
+    
+    # Enhanced retrieval with better parameters
+    retriever = vectordb.as_retriever(
+        search_type="mmr",  # Maximum Marginal Relevance for diversity
+        search_kwargs={
+            "k": 6,  # Get more candidates
+            "fetch_k": 15,  # Fetch more for MMR selection
+            "lambda_mult": 0.8  # Balance relevance vs diversity
+        }
+    )
+    
+    relevant_docs = retriever.invoke(question)
+    
     if not relevant_docs:
-        return "I couldn't find any relevant information in the document to answer your question."
+        return "I couldn't find any relevant information in your documents to answer your question."
     
-    # Combine relevant documents
-    context_parts = [doc.page_content for doc in relevant_docs]
-    
-    # Create a professional response template
+    # Create a professional response with better organization
     response = f"**Answer:**\n\n"
     
-    # Extract key information and format it professionally
-    for i, content in enumerate(context_parts, 1):
-        # Clean up the content
-        cleaned_content = content.strip()
-        if cleaned_content:
-            response += f"📄 **Source {i}:**\n{cleaned_content}\n\n"
+    # Group by source document and sort by relevance
+    docs_by_source = {}
+    for doc in relevant_docs:
+        source = doc.metadata.get('source', 'Unknown Document')
+        if source not in docs_by_source:
+            docs_by_source[source] = []
+        docs_by_source[source].append(doc)
     
-    # Add a summary if we have multiple sources
-    if len(context_parts) > 1:
-        response += f"---\n"
-        response += f"*This answer was compiled from {len(context_parts)} relevant sections of the document.*\n"
-    else:
-        response += f"---\n"
-        response += f"*This information was retrieved from the document.*\n"
+    # Sort sources by number of relevant chunks (most relevant first)
+    sorted_sources = sorted(docs_by_source.items(), key=lambda x: len(x[1]), reverse=True)
+    
+    # Extract key information and format it professionally
+    for source, docs in sorted_sources:
+        response += f"📄 **From: {source}**\n"
+        # Combine content from same source to avoid repetition
+        combined_content = ""
+        for doc in docs:
+            content = doc.page_content.strip()
+            if content and content not in combined_content:
+                combined_content += content + "\n\n"
+        
+        if combined_content:
+            response += combined_content
+    
+    # Add a summary with more detailed statistics
+    total_sources = len(docs_by_source)
+    total_docs = len(documents) if documents else 1
+    total_chunks = len(relevant_docs)
+    
+    response += f"---\n"
+    response += f"*This answer was compiled from {total_chunks} relevant sections across {total_sources} document(s) in your collection of {total_docs} document(s).*\n"
     
     return response
 
-print("\n=== RAG System Ready! ===")
-print("You can now ask questions about the document.")
-print("Type 'quit' or 'exit' to stop the program.\n")
+# Interactive CLI version (original functionality)
+if __name__ == "__main__":
+    # Load and split the document
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    document_path = os.path.join(script_dir, "document", "sample.txt")
+    loader = TextLoader(document_path)
+    documents = loader.load()
 
-# Interactive question loop
-retriever = vectordb.as_retriever(search_kwargs={"k": 3})  # Limit to top 3 results
+    print(f"Original document length: {len(documents[0].page_content)} characters")
 
-while True:
-    try:
-        # Get user input
-        query = input("Ask a question: ").strip()
+    # Better text splitting
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,  # Larger chunks for better context
+        chunk_overlap=100,  # More overlap to maintain context
+        separators=["\n\n", "\n", ". ", "! ", "? ", "; ", ": ", ", ", " ", ""],
+        length_function=len
+    )
+    texts = text_splitter.split_documents(documents)
+
+    print(f"Split into {len(texts)} text chunks")
+    for i, text in enumerate(texts):
+        print(f"Chunk {i+1}: {text.page_content[:100]}...")
+
+    # Load embeddings
+    print("\nLoading embeddings model...")
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    # Create vector DB
+    print("Creating vector database...")
+    vectordb = Chroma.from_documents(texts, embeddings, persist_directory="./vectordb")
+
+    print("\nLoading system...")
+    llm_available = False  # We'll use template-based responses instead
+
+    def refine_response(query, relevant_docs):
+        """Create a professional response using template-based formatting"""
+        if not relevant_docs:
+            return "I couldn't find any relevant information in the document to answer your question."
         
-        # Check for exit commands
-        if query.lower() in ['quit', 'exit', 'q']:
-            print("Goodbye!")
-            break
+        # Combine relevant documents
+        context_parts = [doc.page_content for doc in relevant_docs]
         
-        if not query:
-            print("Please enter a question.")
-            continue
+        # Create a professional response template
+        response = f"**Answer:**\n\n"
         
-        print(f"\n🔍 Searching for: '{query}'")
+        # Extract key information and format it professionally
+        for i, content in enumerate(context_parts, 1):
+            # Clean up the content
+            cleaned_content = content.strip()
+            if cleaned_content:
+                response += f"📄 **Source {i}:**\n{cleaned_content}\n\n"
         
-        # Get relevant documents using the newer invoke method
-        relevant_docs = retriever.invoke(query)
-        
-        if relevant_docs:
-            print(f"📚 Found {len(relevant_docs)} relevant document sections")
-            print("\n" + "="*60)
-            print("💡 **REFINED ANSWER:**")
-            print("="*60)
-            
-            # Get refined response
-            refined_answer = refine_response(query, relevant_docs)
-            print(refined_answer)
-            
-            print("\n" + "="*60)
+        # Add a summary if we have multiple sources
+        if len(context_parts) > 1:
+            response += f"---\n"
+            response += f"*This answer was compiled from {len(context_parts)} relevant sections of the document.*\n"
         else:
-            print("\n❌ No relevant documents found for your question.")
+            response += f"---\n"
+            response += f"*This information was retrieved from the document.*\n"
         
-        print("\n" + "="*60 + "\n")
-        
-    except KeyboardInterrupt:
-        print("\n\nGoodbye!")
-        break
-    except Exception as e:
-        print(f"Error: {e}")
-        print("Please try again.\n")
+        return response
+
+    print("\n=== RAG System Ready! ===")
+    print("You can now ask questions about the document.")
+    print("Type 'quit' or 'exit' to stop the program.\n")
+
+    # Interactive question loop
+    retriever = vectordb.as_retriever(search_kwargs={"k": 3})  # Limit to top 3 results
+
+    while True:
+        try:
+            # Get user input
+            query = input("Ask a question: ").strip()
+            
+            # Check for exit commands
+            if query.lower() in ['quit', 'exit', 'q']:
+                print("Goodbye!")
+                break
+            
+            if not query:
+                print("Please enter a question.")
+                continue
+            
+            print(f"\n🔍 Searching for: '{query}'")
+            
+            # Get relevant documents using the newer invoke method
+            relevant_docs = retriever.invoke(query)
+            
+            if relevant_docs:
+                print(f"📚 Found {len(relevant_docs)} relevant document sections")
+                print("\n" + "="*60)
+                print("💡 **REFINED ANSWER:**")
+                print("="*60)
+                
+                # Get refined response
+                refined_answer = refine_response(query, relevant_docs)
+                print(refined_answer)
+                
+                print("\n" + "="*60)
+            else:
+                print("\n❌ No relevant documents found for your question.")
+            
+            print("\n" + "="*60 + "\n")
+            
+        except KeyboardInterrupt:
+            print("\n\nGoodbye!")
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Please try again.\n")
