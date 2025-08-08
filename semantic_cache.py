@@ -108,3 +108,33 @@ class SemanticCache:
         self._save_cache()
         print(f"💾 Cached query: {query[:50]}...")
   
+
+   def _evict_oldest(self):
+        """Remove oldest cache entries"""
+        sorted_items = sorted(
+            self.cache.items(), 
+            key=lambda x: x[1]['timestamp']
+        )
+        
+        # Remove oldest 20% of entries
+        to_remove = len(sorted_items) // 5
+        for i in range(to_remove):
+            query_hash = sorted_items[i][0]
+            del self.cache[query_hash]
+            if query_hash in self.query_embeddings:
+                del self.query_embeddings[query_hash]
+    
+    def clear(self):
+        """Clear all cache"""
+        self.cache = {}
+        self.query_embeddings = {}
+        self._save_cache()
+        print("🗑️ Cache cleared")
+    
+    def get_stats(self) -> Dict:
+        """Get cache statistics"""
+        return {
+            'cache_size': len(self.cache),
+            'max_size': self.max_cache_size,
+            'similarity_threshold': self.similarity_threshold
+        } 
