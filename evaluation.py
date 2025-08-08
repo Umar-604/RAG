@@ -48,3 +48,47 @@ class RAGEvaluator:
         """Save metrics to file"""
         with open(self.metrics_file, 'w') as f:
             json.dump(self.metrics, f, indent=2)
+   def evaluate_response(self, query: str, response: str, sources: List[str], 
+                        response_time: float, cache_hit: bool = False) -> EvaluationMetrics:
+        """Evaluate a single response"""
+        metrics = EvaluationMetrics(
+            query=query,
+            response=response,
+            sources=sources,
+            response_time=response_time,
+            timestamp=datetime.now().isoformat()
+        )
+        
+        # Calculate relevance score (simple keyword-based for now)
+        metrics.relevance_score = self._calculate_relevance(query, response)
+        
+        # Calculate factual consistency
+        metrics.factual_consistency = self._calculate_factual_consistency(response, sources)
+        
+        # Calculate completeness
+        metrics.completeness = self._calculate_completeness(response)
+        
+        # Store metrics
+        self.metrics.append({
+            'query': metrics.query,
+            'response': metrics.response,
+            'sources': metrics.sources,
+            'response_time': metrics.response_time,
+            'relevance_score': metrics.relevance_score,
+            'factual_consistency': metrics.factual_consistency,
+            'completeness': metrics.completeness,
+            'cache_hit': cache_hit,
+            'timestamp': metrics.timestamp
+        })
+        
+        # Update performance tracking
+        self.query_times.append(response_time)
+        self.total_queries += 1
+        if cache_hit:
+            self.cache_hits += 1
+        
+        # Save metrics
+        self._save_metrics()
+        
+        return metrics
+    
