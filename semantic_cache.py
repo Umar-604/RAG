@@ -21,7 +21,10 @@ class SemanticCache:
         self.cache = self._load_cache()
         self.query_embeddings = self._load_embeddings()
         
-        def _load_cache(self) -> Dict:
+        # Ensure cache directory exists
+        os.makedirs(cache_dir, exist_ok=True)
+    
+    def _load_cache(self) -> Dict:
         """Load cache from disk"""
         if os.path.exists(self.cache_file):
             try:
@@ -107,9 +110,8 @@ class SemanticCache:
         # Save to disk
         self._save_cache()
         print(f"💾 Cached query: {query[:50]}...")
-  
-
-   def _evict_oldest(self):
+    
+    def _evict_oldest(self):
         """Remove oldest cache entries"""
         sorted_items = sorted(
             self.cache.items(), 
