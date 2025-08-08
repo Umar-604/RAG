@@ -19,7 +19,6 @@ class EvaluationMetrics:
     completeness: float = 0.0
     timestamp: str = ""
 
-
 class RAGEvaluator:
     def __init__(self, metrics_file="./metrics/rag_metrics.json"):
         self.metrics_file = metrics_file
@@ -48,7 +47,8 @@ class RAGEvaluator:
         """Save metrics to file"""
         with open(self.metrics_file, 'w') as f:
             json.dump(self.metrics, f, indent=2)
-   def evaluate_response(self, query: str, response: str, sources: List[str], 
+    
+    def evaluate_response(self, query: str, response: str, sources: List[str], 
                         response_time: float, cache_hit: bool = False) -> EvaluationMetrics:
         """Evaluate a single response"""
         metrics = EvaluationMetrics(
@@ -92,8 +92,7 @@ class RAGEvaluator:
         
         return metrics
     
-
-       def _calculate_relevance(self, query: str, response: str) -> float:
+    def _calculate_relevance(self, query: str, response: str) -> float:
         """Calculate relevance score between query and response"""
         query_words = set(query.lower().split())
         response_words = set(response.lower().split())
@@ -180,7 +179,7 @@ class RAGEvaluator:
             'total_metrics_recorded': len(self.metrics)
         }
     
-       def get_recent_performance(self, hours: int = 24) -> Dict:
+    def get_recent_performance(self, hours: int = 24) -> Dict:
         """Get performance for recent time period"""
         cutoff_time = datetime.now().timestamp() - (hours * 3600)
         
@@ -207,3 +206,41 @@ class RAGEvaluator:
         report = f"""
 📊 RAG Performance Report
 {'='*50}
+
+Overall Performance:
+• Total Queries: {summary['total_queries']}
+• Average Response Time: {summary['average_response_time']:.2f}s
+• Cache Hit Rate: {summary['cache_hit_rate']:.1%}
+• Average Relevance: {summary['average_relevance']:.2f}
+• Average Consistency: {summary['average_consistency']:.2f}
+• Average Completeness: {summary['average_completeness']:.2f}
+
+Recent Performance (24h):
+• Recent Queries: {recent.get('recent_queries', 0)}
+• Recent Avg Response Time: {recent.get('recent_avg_response_time', 0):.2f}s
+• Recent Avg Relevance: {recent.get('recent_avg_relevance', 0):.2f}
+• Recent Avg Consistency: {recent.get('recent_avg_consistency', 0):.2f}
+
+Recommendations:
+"""
+        
+        # Add recommendations based on metrics
+        if summary['average_relevance'] < 0.7:
+            report += "• ⚠️ Relevance is low - consider improving retrieval parameters\n"
+        
+        if summary['average_consistency'] < 0.6:
+            report += "• ⚠️ Factual consistency needs improvement - check source quality\n"
+        
+        if summary['cache_hit_rate'] < 0.1:
+            report += "• 💡 Low cache hit rate - consider adjusting similarity threshold\n"
+        
+        if summary['average_response_time'] > 5.0:
+            report += "• ⚠️ Response time is high - consider optimizing retrieval\n"
+        
+        return report
+    
+    def clear_metrics(self):
+        """Clear all metrics"""
+        self.metrics = []
+        self._save_metrics()
+        print("��️ Metrics cleared") 
