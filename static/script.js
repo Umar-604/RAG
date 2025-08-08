@@ -84,7 +84,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.error) {
                 addMessage('bot', `Error: ${data.error}`, 'error');
             } else {
-                addMessage('bot', data.response);
+                // Add cache indicator if response was cached
+                let responseText = data.response;
+                if (data.cached) {
+                    responseText += `\n\n💾 *Cached response (${data.response_time.toFixed(2)}s)*`;
+                } else {
+                    responseText += `\n\n⚡ *Response time: ${data.response_time.toFixed(2)}s*`;
+                }
+                addMessage('bot', responseText);
             }
         })
         .catch(error => {
@@ -278,54 +285,4 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Status check error:', error);
         });
-
-    // Add notification styles
-    const style = document.createElement('style');
-    style.textContent = `
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: white;
-            padding: 1rem 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            z-index: 1001;
-            max-width: 300px;
-        }
-
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.success {
-            border-left: 4px solid #28a745;
-        }
-
-        .notification.error {
-            border-left: 4px solid #dc3545;
-        }
-
-        .notification.info {
-            border-left: 4px solid #17a2b8;
-        }
-
-        .error-message {
-            background: #fff5f5 !important;
-            border: 1px solid #fed7d7;
-            color: #c53030 !important;
-        }
-
-        .source-header {
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #667eea;
-        }
-    `;
-    document.head.appendChild(style);
 }); 
