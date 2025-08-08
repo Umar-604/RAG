@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, jsonify
 import os
+import time
 from werkzeug.utils import secure_filename
 from main import load_and_process_document, ask_question, add_document_to_vectordb, create_new_vectordb
+from semantic_cache import SemanticCache
+from evaluation import RAGEvaluator
 import uuid
 
 app = Flask(__name__)
