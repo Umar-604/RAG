@@ -21,3 +21,90 @@ class SemanticCache:
         self.cache = self._load_cache()
         self.query_embeddings = self._load_embeddings()
         
+        def _load_cache(self) -> Dict:
+        """Load cache from disk"""
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'rb') as f:
+                    return pickle.load(f)
+            except:
+                return {}
+        return {}
+    
+    def _load_embeddings(self) -> Dict:
+        """Load query embeddings from disk"""
+        embeddings_file = os.path.join(self.cache_dir, "query_embeddings.pkl")
+        if os.path.exists(embeddings_file):
+            try:
+                with open(embeddings_file, 'rb') as f:
+                    return pickle.load(f)
+            except:
+                return {}
+        return {}
+    
+    def _save_cache(self):
+        """Save cache to disk"""
+        with open(self.cache_file, 'wb') as f:
+            pickle.dump(self.cache, f)
+        
+        embeddings_file = os.path.join(self.cache_dir, "query_embeddings.pkl")
+        with open(embeddings_file, 'wb') as f:
+            pickle.dump(self.query_embeddings, f)
+    
+    def _get_query_hash(self, query: str) -> str:
+        """Generate hash for query"""
+        return hashlib.md5(query.encode()).hexdigest()
+    
+    def _compute_similarity(self, query1: str, query2: str) -> float:
+        """Compute semantic similarity between two queries"""
+        embeddings = self.embedding_model.encode([query1, query2])
+        similarity = np.dot(embeddings[0], embeddings[1]) / (
+            np.linalg.norm(embeddings[0]) * np.linalg.norm(embeddings[1])
+        )
+        return similarity
+    
+    def get(self, query: str) -> Optional[Dict]:
+        """Get cached result for similar query"""
+        query_hash = self._get_query_hash(query)
+        
+        # Check exact match first
+        if query_hash in self.cache:
+            return self.cache[query_hash]
+        
+        # Check semantic similarity
+        query_embedding = self.embedding_model.encode([query])[0]
+        
+        for cached_query_hash, cached_embedding in self.query_embeddings.items():
+            similarity = np.dot(query_embedding, cached_embedding) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(cached_embedding)
+            )
+            
+            if similarity >= self.similarity_threshold:
+                print(f"🎯 Semantic cache hit! Similarity: {similarity:.3f}")
+                return self.cache[cached_query_hash]
+        
+        return None
+    
+    def set(self, query: str, result: Dict):
+        """Cache query and result"""
+        query_hash = self._get_query_hash(query)
+        
+        # Add to cache
+        self.cache[query_hash] = {
+            'result': result,
+            'timestamp': time.time(),
+            'query': query
+        }
+        
+        # Add embedding
+        query_embedding = self.embedding_model.encode([query])[0]
+        self.query_embeddings[query_hash] = query_embedding
+        
+        # Manage cache size
+        if len(self.cache) > self.max_cache_size:
+            self._evict_oldest()
+        
+        # Save to disk
+        self._save_cache()
+        print(f"💾 Cached query: {query[:50]}...")
+  
