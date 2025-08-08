@@ -180,3 +180,30 @@ class RAGEvaluator:
             'total_metrics_recorded': len(self.metrics)
         }
     
+       def get_recent_performance(self, hours: int = 24) -> Dict:
+        """Get performance for recent time period"""
+        cutoff_time = datetime.now().timestamp() - (hours * 3600)
+        
+        recent_metrics = [
+            m for m in self.metrics 
+            if datetime.fromisoformat(m['timestamp']).timestamp() > cutoff_time
+        ]
+        
+        if not recent_metrics:
+            return {'recent_queries': 0}
+        
+        return {
+            'recent_queries': len(recent_metrics),
+            'recent_avg_response_time': np.mean([m['response_time'] for m in recent_metrics]),
+            'recent_avg_relevance': np.mean([m['relevance_score'] for m in recent_metrics]),
+            'recent_avg_consistency': np.mean([m['factual_consistency'] for m in recent_metrics])
+        }
+    
+    def generate_report(self) -> str:
+        """Generate a performance report"""
+        summary = self.get_performance_summary()
+        recent = self.get_recent_performance()
+        
+        report = f"""
+📊 RAG Performance Report
+{'='*50}
