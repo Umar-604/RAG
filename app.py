@@ -21,6 +21,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 documents = []  # List of uploaded documents
 vectordb = None  # Single vector database for all documents
 
+# Initialize semantic cache and evaluator
+semantic_cache = SemanticCache(cache_dir="./cache", similarity_threshold=0.85)
+evaluator = RAGEvaluator(metrics_file="./metrics/rag_metrics.json")
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -104,13 +108,67 @@ def ask():
     if not question:
         return jsonify({'error': 'Please provide a question'})
     
+    start_time = time.time()
+    cache_hit = False
+    
     try:
+        # Check semantic cache first
+        cached_result = semantic_cache.get(question)
+        if cached_result:
+            cache_hit = True
+            response_time = time.time() - start_time
+            
+            # Evaluate cached response
+            evaluator.evaluate_response(
+                query=question,
+                response=cached_result['result']['response'],
+                sources=cached_result['result'].get('sources', []),
+                response_time=response_time,
+                cache_hit=True
+            )
+            
+            return jsonify({
+                'response': cached_result['result']['response'],
+                'cached': True,
+                'response_time': response_time
+            })
+        
         # Get answer from RAG system
         answer = ask_question(question, vectordb, documents)
-        return jsonify({'response': answer})
+        response_time = time.time() - start_time
+        
+        # Extract sources from answer
+        sources = []
+        if "📄 **From:" in answer:
+            import re
+            source_matches = re.findall(r"📄 \*\*From: ([^*]+)\*\*", answer)
+            sources = source_matches
+        
+        # Cache the result
+        semantic_cache.set(question, {
+            'response': answer,
+            'sources': sources,
+            'response_time': response_time
+        })
+        
+        # Evaluate the response
+        evaluator.evaluate_response(
+            query=question,
+            response=answer,
+            sources=sources,
+            response_time=response_time,
+            cache_hit=False
+        )
+        
+        return jsonify({
+            'response': answer,
+            'cached': False,
+            'response_time': response_time
+        })
         
     except Exception as e:
-        return jsonify({'error': f'Error processing question: {str(e)}'})
+        response_time = time.time() - start_time
+        return jsonify({'error': f'Error processing question: {str(e)}', 'response_time': response_time})
 
 @app.route('/documents', methods=['GET'])
 def get_documents():
@@ -139,6 +197,42 @@ def status():
         'documents_loaded': len(documents) > 0,
         'document_count': len(documents),
         'documents': [doc['name'] for doc in documents]
+    })
+
+@app.route('/metrics', methods=['GET'])
+def get_metrics():
+    """Get performance metrics"""
+    summary = evaluator.get_performance_summary()
+    recent = evaluator.get_recent_performance()
+    
+    return jsonify({
+        'summary': summary,
+        'recent': recent,
+        'cache_stats': semantic_cache.get_stats()
+    })
+
+@app.route('/report', methods=['GET'])
+def get_report():
+    """Get performance report"""
+    report = evaluator.generate_report()
+    return jsonify({'report': report})
+
+@app.route('/clear-cache', methods=['POST'])
+def clear_cache():
+    """Clear semantic cache"""
+    semantic_cache.clear()
+    return jsonify({
+        'success': True,
+        'message': 'Semantic cache cleared successfully!'
+    })
+
+@app.route('/clear-metrics', methods=['POST'])
+def clear_metrics():
+    """Clear performance metrics"""
+    evaluator.clear_metrics()
+    return jsonify({
+        'success': True,
+        'message': 'Performance metrics cleared successfully!'
     })
 
 if __name__ == '__main__':
