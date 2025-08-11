@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusText = document.querySelector('.status-text');
     const documentCount = document.getElementById('document-count');
 
+    // Chat persistence
+    const CHAT_STORAGE_KEY = 'rag_chat_history';
+    const MAX_CHAT_HISTORY = 100; // Maximum number of messages to store
+
     // Voice Recognition Setup
     let recognition = null;
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -35,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
     voiceBtn.addEventListener('click', toggleVoiceInput);
     clearBtn.addEventListener('click', clearChat);
     clearDocsBtn.addEventListener('click', clearDocuments);
+
+    // Load chat history on page load
+    loadChatHistory();
 
     // Voice Recognition Events
     if (recognition) {
@@ -125,6 +132,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         chatMessages.appendChild(messageDiv);
         scrollToBottom();
+        
+        // Save chat history after adding message
+        saveChatHistory();
     }
 
     function formatMessage(content) {
@@ -238,6 +248,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
+            
+            // Clear localStorage chat history
+            localStorage.removeItem(CHAT_STORAGE_KEY);
+            
             showNotification('Chat cleared', 'success');
         }
     }
@@ -276,6 +290,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
 
+    function saveChatHistory() {
+        const messages = Array.from(chatMessages.children).map(message => {
+            const type = message.classList.contains('user-message') ? 'user' : 'bot';
+            const content = message.querySelector('.message-text').innerHTML;
+            return { type, content };
+        });
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }
+
+    function loadChatHistory() {
+        const savedMessages = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (savedMessages) {
+            try {
+                const messages = JSON.parse(savedMessages);
+                // Clear the default welcome message first
+                chatMessages.innerHTML = '';
+                messages.forEach(msg => {
+                    addMessage(msg.type, msg.content);
+                });
+                scrollToBottom();
+            } catch (e) {
+                console.error('Error loading chat history:', e);
+                localStorage.removeItem(CHAT_STORAGE_KEY); // Clear corrupted data
+                saveInitialWelcomeMessage();
+            }
+        } else {
+            // No saved history, save the initial welcome message
+            saveInitialWelcomeMessage();
+        }
+    }
+
+    function saveInitialWelcomeMessage() {
+        // Get the initial welcome message from the DOM
+        const welcomeMessage = chatMessages.querySelector('.bot-message');
+        if (welcomeMessage) {
+            const content = welcomeMessage.querySelector('.message-text').innerHTML;
+            // Save the welcome message to localStorage
+            const messages = [{ type: 'bot', content: content }];
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+        }
+    }
+
     // Check initial document status
     fetch('/status')
         .then(response => response.json())
@@ -285,4 +341,16 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Status check error:', error);
         });
+
+    // Save chat history when page becomes hidden (user switches tabs, minimizes, etc.)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            saveChatHistory();
+        }
+    });
+
+    // Save chat history before page unload
+    window.addEventListener('beforeunload', function() {
+        saveChatHistory();
+    });
 }); 
